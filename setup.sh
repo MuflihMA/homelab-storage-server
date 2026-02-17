@@ -1,22 +1,62 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 set -a
 source .env
 set +a
 
-echo "📝 Generate smb.conf..."
-envsubst < samba/smb.conf.template > samba/smb.conf
+log()  { echo "▶ $1"; }
+die()  { echo "❌ $1" >&2; exit 1; }
 
-echo "🔐 Setup WebDAV initial user (if needed)..."
-if [ ! -f webdav/users.passwd ]; then
-  touch webdav/users.passwd
-fi
+# ---------- validasi env ----------
+[ -n "${SAMBA_STORAGE_PATH:-}" ]  || die "SAMBA_STORAGE_PATH not set in .env"
+[ -n "${WEBDAV_STORAGE_PATH:-}" ] || die "WEBDAV_STORAGE_PATH not set in .env"
+
+# ---------- buat folder storage di host ----------
+log "Creating storage directories..."
+
+# Samba — folder per share/group, sesuaikan dengan smb.conf
+sudo mkdir -p "${SAMBA_STORAGE_PATH}/storage"
+# sudo mkdir -p "${SAMBA_STORAGE_PATH}/finance"   # uncomment jika ada share finance
+
+# WebDAV
+sudo mkdir -p "${WEBDAV_STORAGE_PATH}"
+
+# ---------- set permission di host ----------
+log "Setting folder permissions..."
+
+# Samba folders: writable by current user (container pakai uid yang sama)
+sudo chown -R "${USER}:${USER}" "${SAMBA_STORAGE_PATH}"
+sudo chmod -R 2775 "${SAMBA_STORAGE_PATH}"
+
+# WebDAV folder
+sudo chown -R "${USER}:${USER}" "${WEBDAV_STORAGE_PATH}"
+sudo chmod -R 755 "${WEBDAV_STORAGE_PATH}"
+
+# ---------- setup webdav initial user ----------
+log "Setting up WebDAV passwd file..."
+
+mkdir -p webdav
 
 if [ ! -s webdav/users.passwd ]; then
-  echo "Create WebDAV user:"
-  htpasswd -B webdav/users.passwd storage
+  log "No WebDAV users found, creating initial user from users.conf..."
+  while IFS=':' read -r username groups samba_access webdav_access; do
+    [[ "$username" =~ ^#|^[[:space:]]*$ ]] && continue
+    username=$(echo "$username" | tr -d '[:space:]')
+    webdav_access=$(echo "$webdav_access" | tr -d '[:space:]')
+
+    if [ "$webdav_access" = "yes" ]; then
+      PASSVAR="SAMBA_${username^^}_PASSWORD"
+      PASSWORD="${!PASSVAR:-}"
+      if [ -n "$PASSWORD" ]; then
+        htpasswd -bB webdav/users.passwd "$username" "$PASSWORD"
+        log "  ✅ WebDAV user '$username' created"
+      else
+        log "  ⚠ No password for '$username', skipping WebDAV setup"
+      fi
+    fi
+  done < users.conf
 fi
 
-echo "✅ Setup selesai"
-echo "👉 Jalankan: docker compose up -d"
+log "✅ Setup selesai"
+log "👉 Jalankan: docker-compose up -d"
