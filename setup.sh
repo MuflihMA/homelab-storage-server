@@ -40,6 +40,8 @@ mkdir -p webdav
 
 if [ ! -s webdav/users.passwd ]; then
   log "No WebDAV users found, creating initial user from users.conf..."
+  FIRST_WEBDAV_USER=true
+
   while IFS=':' read -r username groups samba_access webdav_access; do
     [[ "$username" =~ ^#|^[[:space:]]*$ ]] && continue
     username=$(echo "$username" | tr -d '[:space:]')
@@ -49,7 +51,12 @@ if [ ! -s webdav/users.passwd ]; then
       PASSVAR="SAMBA_${username^^}_PASSWORD"
       PASSWORD="${!PASSVAR:-}"
       if [ -n "$PASSWORD" ]; then
-        htpasswd -bB webdav/users.passwd "$username" "$PASSWORD"
+        if [ "$FIRST_WEBDAV_USER" = true ]; then
+          htpasswd -cbB webdav/users.passwd "$username" "$PASSWORD"  # -c = create file baru
+          FIRST_WEBDAV_USER=false
+        else
+          htpasswd -bB webdav/users.passwd "$username" "$PASSWORD"   # append ke file existing
+        fi
         log "  ✅ WebDAV user '$username' created"
       else
         log "  ⚠ No password for '$username', skipping WebDAV setup"
@@ -59,4 +66,4 @@ if [ ! -s webdav/users.passwd ]; then
 fi
 
 log "✅ Setup selesai"
-log "👉 Jalankan: docker-compose up -d"
+log "👉 Jalankan: docker-compose build && docker-compose up -d"
