@@ -6,6 +6,7 @@ source .env
 set +a
 
 log()  { echo "▶ $1"; }
+warn() { echo "⚠ $1"; }
 die()  { echo "❌ $1" >&2; exit 1; }
 
 # ---------- validasi env ----------
@@ -39,11 +40,13 @@ log "Setting up WebDAV passwd file..."
 mkdir -p webdav
 
 if [ ! -s webdav/users.passwd ]; then
-  log "No WebDAV users found, creating initial user from users.conf..."
+  log "Creating WebDAV users from users.conf..."
   FIRST_WEBDAV_USER=true
+  WEBDAV_COUNT=0
 
   while IFS=':' read -r username groups samba_access webdav_access; do
-    [[ "$username" =~ ^#|^[[:space:]]*$ ]] && continue
+    # skip komentar, baris kosong, dan separator
+    [[ "$username" =~ ^#|^[[:space:]]*$|^-+$ ]] && continue
     username=$(echo "$username" | tr -d '[:space:]')
     webdav_access=$(echo "$webdav_access" | tr -d '[:space:]')
 
@@ -52,17 +55,25 @@ if [ ! -s webdav/users.passwd ]; then
       PASSWORD="${!PASSVAR:-}"
       if [ -n "$PASSWORD" ]; then
         if [ "$FIRST_WEBDAV_USER" = true ]; then
-          htpasswd -cbB webdav/users.passwd "$username" "$PASSWORD"  # -c = create file baru
+          htpasswd -cbB webdav/users.passwd "$username" "$PASSWORD"
           FIRST_WEBDAV_USER=false
         else
-          htpasswd -bB webdav/users.passwd "$username" "$PASSWORD"   # append ke file existing
+          htpasswd -bB webdav/users.passwd "$username" "$PASSWORD"
         fi
         log "  ✅ WebDAV user '$username' created"
+        WEBDAV_COUNT=$((WEBDAV_COUNT + 1))
       else
-        log "  ⚠ No password for '$username', skipping WebDAV setup"
+        warn "  No password env var SAMBA_${username^^}_PASSWORD found for '$username', skipping"
       fi
     fi
   done < users.conf
+
+  if [ "$WEBDAV_COUNT" -eq 0 ]; then
+    warn "Tidak ada WebDAV user yang dibuat!"
+    warn "Pastikan users.conf punya user aktif dengan webdav=yes DAN password-nya ada di .env"
+    warn "Contoh users.conf: mamuflih:admins|storage:yes:yes"
+    warn "Contoh .env: SAMBA_MAMUFLIH_PASSWORD=yourpassword"
+  fi
 fi
 
 log "✅ Setup selesai"
