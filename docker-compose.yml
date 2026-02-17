@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  samba:
+    image: dperson/samba
+    container_name: samba
+    restart: unless-stopped
+    ports:
+      - "139:139"
+      - "445:445"
+    volumes:
+      - "${SAMBA_STORAGE_PATH}:/shared"
+    environment:
+      - USERID=1000
+      - GROUPID=1000
+    command: >
+      -u "mamuflih;${SAMBA_MAMUFLIH_PASSWORD}"
+      -s "${SAMBA_SHARE_NAME};/shared;yes;no;no;${SAMBA_USERS}"
+
+  webdav:
+    image: bytemark/webdav
+    container_name: webdav
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - "${DAV_STORAGE_PATH}:/var/lib/dav"
+      - "./webdav/users.passwd:/user.passwd"
+    environment:
+      AUTH_TYPE: "${WEBDAV_AUTH_TYPE}"
+

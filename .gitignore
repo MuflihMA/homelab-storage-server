@@ -1,0 +1,4 @@
+.env
+samba/smb.conf
+webdav/users.passwd
+srv
