@@ -25,7 +25,7 @@ if [ $# -lt 1 ]; then
 fi
 
 USERNAME="$1"
-GROUPS="${2:-storage}"
+USER_GROUPS="${2:-storage}"
 SAMBA_ACCESS="${3:-yes}"
 WEBDAV_ACCESS="${4:-no}"
 
@@ -48,7 +48,7 @@ read -s -p "Confirm password: " CONFIRM; echo
 PASSVAR="SAMBA_${USERNAME^^}_PASSWORD"
 
 # ---------- update users.conf ----------
-echo "${USERNAME}:${GROUPS}:${SAMBA_ACCESS}:${WEBDAV_ACCESS}" >> "$USERS_CONF"
+echo "${USERNAME}:${USER_GROUPS}:${SAMBA_ACCESS}:${WEBDAV_ACCESS}" >> "$USERS_CONF"
 log "users.conf updated"
 
 # ---------- update .env ----------
@@ -68,7 +68,7 @@ if docker ps --format '{{.Names}}' | grep -q "^samba$"; then
     docker exec samba smbpasswd -e "$USERNAME" 2>/dev/null || true
 
     # join groups
-    IFS='|' read -ra GROUP_LIST <<< "$GROUPS"
+    IFS='|' read -ra GROUP_LIST <<< "$USER_GROUPS"
     for grp in "${GROUP_LIST[@]}"; do
       grp=$(echo "$grp" | tr -d '[:space:]')
       [ -z "$grp" ] && continue
@@ -100,6 +100,6 @@ fi
 
 echo ""
 echo "✅ User '$USERNAME' successfully added"
-echo "   Groups  : $GROUPS"
+echo "   Groups  : $USER_GROUPS"
 echo "   Samba   : $SAMBA_ACCESS"
 echo "   WebDAV  : $WEBDAV_ACCESS"
