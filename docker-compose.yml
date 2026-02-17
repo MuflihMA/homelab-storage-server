@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   samba:
-    image: dperson/samba
+    build: ./samba
     container_name: samba
     restart: unless-stopped
     ports:
@@ -10,12 +10,9 @@ services:
       - "445:445"
     volumes:
       - "${SAMBA_STORAGE_PATH}:/shared"
-    environment:
-      - USERID=1000
-      - GROUPID=1000
-    command: >
-      -u "mamuflih;${SAMBA_MAMUFLIH_PASSWORD}"
-      -s "${SAMBA_SHARE_NAME};/shared;yes;no;no;${SAMBA_USERS}"
+      - "./samba/smb.conf:/etc/samba/smb.conf:ro"
+      - "./users.conf:/etc/samba/users.conf:ro"
+    env_file: .env
 
   webdav:
     image: bytemark/webdav
@@ -24,8 +21,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - "${DAV_STORAGE_PATH}:/var/lib/dav"
-      - "./webdav/users.passwd:/user.passwd"
+      - "${WEBDAV_STORAGE_PATH}:/var/lib/dav"
+      - "./webdav/users.passwd:/user.passwd:ro"
     environment:
       AUTH_TYPE: "${WEBDAV_AUTH_TYPE}"
-
